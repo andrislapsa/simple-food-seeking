@@ -105,6 +105,7 @@ function run(state) {
       }, true)
 
       if (tick === TICKS || allDone) {
+        timeLeft.innerHTML += ` click for next generation`
         resolve(state)
         return
       }
