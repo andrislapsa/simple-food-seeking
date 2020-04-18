@@ -14,25 +14,51 @@
     }
 
     pre {
+      margin: 5px 0;
+    }
+
+    pre.canvas {
       font-size: 38px;
       line-height: 0.6;
       display: inline-block;
       border: 1px solid;
       padding: 5px;
+      display: none;
     }
 
-    canvas {
-      border: 1px solid gray;
-      margin: 60px auto;
-      display: block;
-      transform: scale(5);
+    svg {
+      /*display: none;*/
+      border: 1px solid;
+      margin: 5px;
+      /*width: 40%;*/
+    }
+
+    svg .food {
+      fill: red;
+    }
+
+    svg circle {  
+      transition: linear .09s all;
+      color: brown;
+      fill: #435aff44;
+    }
+
+    .food {
+      fill: red;
     }
   </style>
 </head>
 <body>
   <div class="content">
-    <div><h1></h1><span></span></div>
-    <pre>click to init 1st generation</pre>
+    <div>
+      <h1>Click to initialise 1st generation</h1><span></span>
+    </div>
+    <div>
+      <pre class="canvas"></pre>
+      <svg viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
+      </svg>
+    </div>
+    <pre class="stats">---</pre>
   </div>
   <script type='module' src='index.js'></script>
 </body>

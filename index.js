@@ -1,10 +1,10 @@
-const CREATURES = 30
-const MUTABILITY = 0.01
+const CREATURES = 100
+const MUTABILITY = 0.005
 const WIDTH = 20
 const HEIGHT = 20
 const TICKS = 100
 const FPS = 60
-const FRAME_LENGTH = 1000 / FPS
+window.FRAME_LENGTH = 1000 / FPS
 const FOOD_POSITION = { x: 1, y: 1 }
 const DIRECTIONS = {
   UP: { x: 0, y: -1 },
@@ -12,6 +12,11 @@ const DIRECTIONS = {
   LEFT: { x: -1, y: 0 },
   RIGHT: { x: 1, y: 0 },
 }
+const CREATURE_STARTING_POS = {
+  x: WIDTH / 2,
+  y: HEIGHT / 2,
+}
+const svgns = 'http://www.w3.org/2000/svg'
 
 const randomItem = array =>
   array[Math.floor(array.length * Math.random())]
@@ -42,9 +47,11 @@ function mutate(genetics) {
   })
 }
 
-const pre = document.querySelector('pre')
+const outputEl = document.querySelector('pre.canvas')
+const statsEl = document.querySelector('pre.stats')
 const h1 = document.querySelector('h1')
 const timeLeft = document.querySelector('h1 + span')
+const svgEl = document.querySelector('svg')
 
 class Creature {
   x = 0
@@ -53,6 +60,7 @@ class Creature {
   tick = 0
   fitness = 0
   ateFood = false
+  gotLost = false
 
   constructor({ x, y, genetics }) {
     this.x = x
@@ -61,12 +69,16 @@ class Creature {
   }
 
   move(food, tick) {
-    if (this.ateFood) return
+    if (this.ateFood || this.gotLost) return
 
     const currentDirection = this.genetics[tick - 1].direction
     this.x += currentDirection.x
     this.y += currentDirection.y
     this.tick = tick
+
+    if (this.x > WIDTH || this.x < 0 || this.y > HEIGHT || this.y < 0) {
+      this.gotLost = true
+    }
 
     if (this.x === food.x && this.y === food.y) {
       this.ateFood = true
@@ -75,37 +87,83 @@ class Creature {
 
   calculateFitness(food) {
     const distanceToFood = Math.abs(food.x - this.x) + Math.abs(food.y - this.y)
-    
+
     if (this.ateFood) {
       this.fitness = 5 + (TICKS - this.tick)
     } else {
       this.fitness = 1 / distanceToFood * 10
     }
+
+    // reduce fitness for leaving the world
+    if (this.gotLost) this.fitness *= .5
   }
 }
 
 let state = {
   creatures: initArray(CREATURES, () => new Creature({
-    x: WIDTH / 2,
-    y: HEIGHT / 2,
+    ...CREATURE_STARTING_POS,
     genetics: initArray(TICKS, getRandomGene),
   })),
   food: FOOD_POSITION,
 }
 
+function serializeGeneration(creatures, food) {
+  const data = {}
+
+  let tick = 0
+  while (tick < TICKS) {
+    tick++
+    data[tick] = []
+
+    state.creatures.forEach((creature) => {
+      creature.move(state.food, tick)
+      // if (!data[creature]) data[creature] = {}
+      data[tick].push({
+        obj: creature,
+        x: creature.x,
+        y: creature.y,
+      })
+
+      // calculate fitness on last tick
+      if (tick === TICKS) creature.calculateFitness(food)
+    })
+  }
+
+  return data
+}
+
 function run(state) {
   let tick = 0
+  const { food, creatures } = state
+
+  const genData = serializeGeneration(creatures, food)
+  const fitnesses = genData[TICKS].map(({ obj }) => obj.fitness)
+  const maxFitness = Math.max(...fitnesses)
+  const minFitness = Math.min(...fitnesses)
+  const totalFitness = fitnesses.reduce((acc, fitness) => acc + fitness, 0)
+  const averageFitness = totalFitness / fitnesses.length
+
+  svgEl.innerHTML = ''
+  const foodSvg = document.createElementNS(svgns, 'circle')
+  foodSvg.setAttribute('class', 'food')
+  foodSvg.setAttribute('r', .5)
+  foodSvg.setAttribute('cy', food.y)
+  foodSvg.setAttribute('cx', food.x)
+  svgEl.appendChild(foodSvg)
 
   return new Promise((resolve) => {
+    statsEl.innerHTML = '---'
+
     function loop() {
-      const allDone = state.creatures.reduce((everyoneAte, creature) => {
-        if (creature.ateFood && everyoneAte) return true
-
-        return false
-      }, true)
-
-      if (tick === TICKS || allDone) {
-        timeLeft.innerHTML += ` click for next generation`
+      if (tick === TICKS) {
+        renderStats({
+          ...state,
+          minFitness,
+          maxFitness,
+          averageFitness,
+        }, statsEl)
+        
+        timeLeft.innerHTML += ' click for next generation'
         resolve(state)
         return
       }
@@ -113,12 +171,14 @@ function run(state) {
       tick++
 
       // do stuff
-      state.creatures.forEach((creature) => {
-        creature.move(state.food, tick)  
-      })
       timeLeft.innerHTML = `age (${tick}/${TICKS})`
 
-      render(state, pre)
+      render({
+        genData,
+        tick,
+        food,
+        maxFitness,
+      }, outputEl)
 
       setTimeout(() => {
         loop()
@@ -129,20 +189,48 @@ function run(state) {
   })
 }
 
-export function render(state, output) {
+function render({ food, genData, tick, maxFitness }, output) {
+  genData[tick].forEach(({ x, y, obj }) => {
+    if (!obj.svg) {
+      obj.svg = document.createElementNS(svgns, 'circle')
+      obj.svg.setAttribute('r', .3)
+      svgEl.appendChild(obj.svg)
+    }
+
+    obj.svg.setAttribute('cx', x)
+    obj.svg.setAttribute('cy', y)
+  })
+
   const grid = initArray(HEIGHT, (rowVal, y) => {
     return initArray(WIDTH, (columnVal, x) => {
-      if (state.creatures.find((creature) => {
+      if (genData[tick].find((creature) => {
+        // show only the fittest half of the population
+        if (creature.fitness / maxFitness < .8) return false
+
         return creature.x === x && creature.y === y
       })) return 'x'
       
-      if (state.food.x === x && state.food.y === y) return 'o'
+      if (food.x === x && food.y === y) return 'o'
 
       return ' '
     })
   })
 
   output.innerHTML = grid.map((columns) => columns.join('')).join('\n')
+}
+
+function renderStats(state, output) {
+  let minAgeWithFood = 100
+  state.creatures.forEach((creature, key) => {
+    if (creature.ateFood && creature.tick < minAgeWithFood) minAgeWithFood = creature.tick
+  })
+
+  output.innerHTML =
+`Min age with food = ${minAgeWithFood}
+Max fitness = ${state.maxFitness}
+Min fitness = ${state.minFitness}
+Average fitness = ${state.averageFitness}
+`
 }
 
 let gen = 0;
@@ -152,30 +240,29 @@ document.addEventListener('click', () => {
   if (running) return false
 
   gen++
-  console.log('generation', gen)
   h1.innerHTML = `Generation ${gen}`
 
   running = true
 
   run(state)
     .then((newState) => {
-      console.log('creatures end state', newState.creatures)
-
       const matingPool = []
       newState.creatures.forEach((creature, key) => {
         creature.calculateFitness(newState.food)
 
         const partnersInMatingPool = initArray(Math.round(creature.fitness), () => creature)
+
         matingPool.push(...partnersInMatingPool)
       })
+
+      console.log('creatures end state', newState.creatures)
 
       state.creatures = initArray(CREATURES, () => {
         const firstPartner = randomItem(matingPool).genetics
         const secondPartner = randomItem(matingPool).genetics
 
         return new Creature({
-          x: WIDTH / 2,
-          y: HEIGHT / 2,
+          ...CREATURE_STARTING_POS,
           genetics: mutate(crossover(firstPartner, secondPartner)),
         })
       })
