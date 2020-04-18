@@ -1,0 +1,22 @@
+{
+  "name": "simple-food-seeking",
+  "version": "1.0.0",
+  "description": "2D creatures optimise their path to food by evolution and passing simple genetics to next generations",
+  "main": "index.js",
+  "scripts": {
+    "start": "http-server"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/andrislapsa/simple-food-seeking.git"
+  },
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/andrislapsa/simple-food-seeking/issues"
+  },
+  "homepage": "https://github.com/andrislapsa/simple-food-seeking#readme",
+  "dependencies": {
+    "http-server": "^0.12.1"
+  }
+}
