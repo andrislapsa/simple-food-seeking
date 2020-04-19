@@ -1,21 +1,20 @@
-const CREATURES = 100
-const MUTABILITY = 0.005
-const WIDTH = 20
-const HEIGHT = 20
-const TICKS = 100
-const FPS = 60
-window.FRAME_LENGTH = 1000 / FPS
-const FOOD_POSITION = { x: 1, y: 1 }
-const DIRECTIONS = {
-  UP: { x: 0, y: -1 },
-  DOWN: { x: 0, y: 1 },
-  LEFT: { x: -1, y: 0 },
-  RIGHT: { x: 1, y: 0 },
-}
-const CREATURE_STARTING_POS = {
-  x: WIDTH / 2,
-  y: HEIGHT / 2,
-}
+import {
+  CREATURES,
+  MUTABILITY,
+  WIDTH,
+  HEIGHT,
+  TICKS,
+  FPS,
+  FRAME_LENGTH,
+  FOOD_POSITION,
+  DIRECTIONS,
+  CREATURE_STARTING_POS,
+} from './consts.js'
+import { Creature } from './Creature.js'
+
+let ANIMATE_GENERATION = true
+let SHOW_FITTEST = false
+
 const svgns = 'http://www.w3.org/2000/svg'
 
 const randomItem = array =>
@@ -53,51 +52,7 @@ const h1 = document.querySelector('h1')
 const timeLeft = document.querySelector('h1 + span')
 const svgEl = document.querySelector('svg')
 
-class Creature {
-  x = 0
-  y = 0
-  genetics = []
-  tick = 0
-  fitness = 0
-  ateFood = false
-  gotLost = false
 
-  constructor({ x, y, genetics }) {
-    this.x = x
-    this.y = y
-    this.genetics = genetics
-  }
-
-  move(food, tick) {
-    if (this.ateFood || this.gotLost) return
-
-    const currentDirection = this.genetics[tick - 1].direction
-    this.x += currentDirection.x
-    this.y += currentDirection.y
-    this.tick = tick
-
-    if (this.x > WIDTH || this.x < 0 || this.y > HEIGHT || this.y < 0) {
-      this.gotLost = true
-    }
-
-    if (this.x === food.x && this.y === food.y) {
-      this.ateFood = true
-    }
-  }
-
-  calculateFitness(food) {
-    const distanceToFood = Math.abs(food.x - this.x) + Math.abs(food.y - this.y)
-
-    if (this.ateFood) {
-      this.fitness = 5 + (TICKS - this.tick)
-    } else {
-      this.fitness = 1 / distanceToFood * 10
-    }
-
-    // reduce fitness for leaving the world
-    if (this.gotLost) this.fitness *= .5
-  }
-}
 
 let state = {
   creatures: initArray(CREATURES, () => new Creature({
@@ -133,7 +88,7 @@ function serializeGeneration(creatures, food) {
 }
 
 function run(state) {
-  let tick = 0
+  let tick = ANIMATE_GENERATION ? 0 : TICKS - 1
   const { food, creatures } = state
 
   const genData = serializeGeneration(creatures, food)
@@ -162,8 +117,7 @@ function run(state) {
           maxFitness,
           averageFitness,
         }, statsEl)
-        
-        timeLeft.innerHTML += ' click for next generation'
+
         resolve(state)
         return
       }
@@ -191,6 +145,9 @@ function run(state) {
 
 function render({ food, genData, tick, maxFitness }, output) {
   genData[tick].forEach(({ x, y, obj }) => {
+    // show only the fittest half of the population
+    if (SHOW_FITTEST && obj.fitness / maxFitness < .8) return false
+
     if (!obj.svg) {
       obj.svg = document.createElementNS(svgns, 'circle')
       obj.svg.setAttribute('r', .3)
@@ -236,7 +193,15 @@ Average fitness = ${state.averageFitness}
 let gen = 0;
 let running = false
 
-document.addEventListener('click', () => {
+document.querySelector('input[name=animateGeneration]').addEventListener('change', (e) => {
+  ANIMATE_GENERATION = e.target.checked
+})
+
+document.querySelector('input[name=showFittest]').addEventListener('change', (e) => {
+  SHOW_FITTEST = e.target.checked
+})
+
+document.querySelector('#newGeneration').addEventListener('click', () => {
   if (running) return false
 
   gen++
